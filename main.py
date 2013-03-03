@@ -8,22 +8,19 @@ Copyright (c) 2010 Morgan McClure.
 
 import sys
 import getopt
-
+import os
 
 help_message = '''
 The help message goes here.
 '''
 
 
-def 
+
+
 
 class Usage(Exception):
     def __init__(self, msg):
         self.msg = msg
-
-
-
-
 
 
 def main(argv=None):
