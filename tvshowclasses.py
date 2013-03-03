@@ -6,6 +6,23 @@ from os import listdir
 from os.path import  isdir
 from glob import glob
 
+#Taken from stack overflow
+class lazy_property(object):
+    '''
+    meant to be used for lazy evaluation of an object attribute.
+    property should represent non-mutable data, as it replaces itself.
+    '''
+    def __init__(self,fget):
+        self.fget = fget
+        self.func_name = fget.__name__
+
+    def __get__(self,obj,cls):
+        if obj is None:
+            return None
+        value = self.fget(obj)
+        setattr(obj,self.func_name,value)
+        return value
+
 
 class Directory(object):
     def __init__(self, directory):
@@ -24,6 +41,9 @@ class Directory(object):
         for extension in self.fileExtensions:
             media.extend(glob(os.path.join(self.directory, "*.%s" % extension)))
         return media 
+    @property
+    def mediaFiles(self):
+        return [ MediaFile(filename, self) for filename in self.mediaFilenames ]
 
     @property
     def folders(self):
@@ -40,6 +60,16 @@ class Directory(object):
     def rogueFilenames(self):
         return [ filename for filename in self.listing if filename not in self.folders and filename not in self.mediaFilenames ]
 
+
+class TVCollectionDirectory(Directory):
+    def __init__(self, directory):
+        super(TVCollectionDirectory, self).__init__(directory)
+
+    @lazy_property
+    def shows(self):
+        return [ TVShowDirectory(filename) for filename in self.folders ]
+
+
 class TVShowDirectory(Directory):
     def __init__(self, directory):
         super(TVShowDirectory, self).__init__(directory)
@@ -48,13 +78,14 @@ class TVShowDirectory(Directory):
     def show(self):
         return os.path.basename(self.directory)
 
-    @property
-    def seasonDirs(self):
+    @lazy_property
+    def seasons(self):
         return [ SeasonDirectory(folder,self) for folder in self.folders]
     
     @property
     def orphanFiles(self):
-        return [ MediaFile(filename) for filename in self.mediaFilenames ]
+        return self.mediaFiles
+        #return [ MediaFile(filename) for filename in self.mediaFilenames ]
 
 
 class SeasonDirectory(Directory):
@@ -80,7 +111,7 @@ class SeasonDirectory(Directory):
             return int(matchobj.group())
     
     @property
-    def show(self): return parent.show
+    def show(self): return self.parent.show
 
     @property
     def episodes(self):
@@ -101,27 +132,25 @@ class MediaFile(object):
         if isinstance(self.parent, SeasonDirectory):
             return parent.season()
         else:
+            import ipdb;ipdb.set_trace()
             return None
 
     def __str__(self):
         if isinstance(self.parent, SeasonDirectory): 
             return "Episode from season %s of %s" % (self.season, self.parent.show)
 
-
     def _guessSeasonEpisode(self):
         os.path.basename(self.filename)
     
-    @property
+    @lazy_property
     def md5(self):
-        if not hasattr(self, "_md5sum"):
-            hasher = hashlib.md5()
-            with open(self.filename, "r") as afile:
+        hasher = hashlib.md5()
+        with open(self.filename, "r") as afile:
+            buf = afile.read(65536)
+            while len(buf) > 0:
+                hasher.update(buf)
                 buf = afile.read(65536)
-                while len(buf) > 0:
-                    hasher.update(buf)
-                    buf = afile.read(65536)
-            self._md5sum = hasher.hexdigest()
-        return self._md5sum
+        return hasher.hexdigest()
 
 
 
